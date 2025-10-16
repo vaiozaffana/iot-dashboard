@@ -7,46 +7,79 @@ import { DetailedChart } from "@/components/DetailedChart"
 import { AnalyticsOverview } from "@/components/AnalyticsOverview"
 import { AnimatedBackground } from "@/components/AnimatedBackground"
 import { FloatingActionButton } from "@/components/FloatingActionButton"
-import { generateSensorData, initializeSensorHistory } from "@/lib/sensorData"
 import { SystemStatus } from "@/components/SystemStatus"
-import type { SensorData } from "@/types/sensor"
+import { LightControl } from "@/components/LightControl"
+
+interface ApiResponse {
+  fan_mode: string
+  gas: {
+    Aceton: number
+    Alcohol: number
+    CO: number
+    CO2: number
+    NH4: number
+    Tolueno: number
+  }
+  kelembaban: number
+  ldr: number
+  suhu: number
+}
+
+interface SensorData {
+  temperature: number
+  humidity: number
+  co: number
+  co2: number
+  nh4: number
+  light: number
+}
 
 export default function Dashboard() {
   const [sensorData, setSensorData] = useState<SensorData>({
-    temperature: 22,
-    humidity: 45,
-    co: 5,
-    co2: 800,
-    nh4: 10,
-    light: 500,
+    temperature: 0,
+    humidity: 0,
+    co: 0,
+    co2: 0,
+    nh4: 0,
+    light: 0,
   })
 
   const [isOnline, setIsOnline] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
   const [isLoaded, setIsLoaded] = useState(false)
 
+  const fetchSensorData = async () => {
+    try {
+      const response = await fetch('http://10.13.79.42:5000/api/sensor')
+      const data: ApiResponse = await response.json()
+      
+      setSensorData({
+        temperature: data.suhu,
+        humidity: data.kelembaban,
+        co: data.gas.CO,
+        co2: data.gas.CO2,
+        nh4: data.gas.NH4,
+        light: data.ldr,
+      })
+      
+      setLastUpdate(new Date())
+      setIsOnline(true)
+    } catch (error) {
+      console.error('Error fetching sensor data:', error)
+      setIsOnline(false)
+    }
+  }
+
   useEffect(() => {
-    // Initialize historical data
-    initializeSensorHistory()
     setIsLoaded(true)
+    
+    fetchSensorData()
 
-    const interval = setInterval(() => {
-      // Simulate occasional connection issues (5% chance)
-      const connectionIssue = Math.random() < 0.05
-
-      if (!connectionIssue) {
-        setSensorData(generateSensorData())
-        setLastUpdate(new Date())
-        setIsOnline(true)
-      } else {
-        setIsOnline(false)
-        // Reconnect after 2 seconds
-        setTimeout(() => setIsOnline(true), 2000)
-      }
-    }, 3000)
+    const interval = setInterval(fetchSensorData, 3000)
 
     return () => clearInterval(interval)
   }, [])
+
 
   if (!isLoaded) {
     return (
@@ -78,7 +111,7 @@ export default function Dashboard() {
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <div className="flex items-center justify-between">
             <motion.div whileHover={{ scale: 1.02 }} transition={{ duration: 0.2 }}>
-              <h1 className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+              <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
                 Smart Home Monitor
               </h1>
               <p className="text-slate-400 text-lg">Real-time environmental monitoring dashboard</p>
@@ -86,6 +119,8 @@ export default function Dashboard() {
             <SystemStatus isOnline={isOnline} lastUpdate={lastUpdate} />
           </div>
         </motion.div>
+
+        <LightControl />
 
         {/* Analytics Overview */}
         <AnalyticsOverview currentData={sensorData} />
@@ -161,7 +196,7 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      <FloatingActionButton />
+      {/*    */}
     </div>
   )
 }
